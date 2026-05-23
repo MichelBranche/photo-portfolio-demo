@@ -109,3 +109,7 @@ gestione immagini avanzata
 animazioni custom GSAP
 architettura scalabile per altri portfolio
 ---
+## License
+
+This project is proprietary and protected by copyright.
+Unauthorized use, reproduction, or distribution is prohibited.
