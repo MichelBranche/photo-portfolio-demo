@@ -188,18 +188,20 @@ body.project-zoom-enabled:not(.zoom-mode) #viewport::-webkit-scrollbar-corner {
   background: transparent;
 }
 
-/* Pagine principali: spazio fisso per la barra a destra (niente salto layout) */
-.site-page,
-.about-page,
-.project-moda,
-.project-moda-jump,
-.project-isola,
-.project-parigi,
-.project-taboo,
-.project-gallipoli,
-.project-gallipoli-day,
-.project-ernia,
-.project-laurea,
-.project-editorial {
-  scrollbar-gutter: stable;
+/* Desktop: spazio fisso per la barra a destra (niente salto layout) */
+@media (min-width: 901px) {
+  .site-page,
+  .about-page,
+  .project-moda,
+  .project-moda-jump,
+  .project-isola,
+  .project-parigi,
+  .project-taboo,
+  .project-gallipoli,
+  .project-gallipoli-day,
+  .project-ernia,
+  .project-laurea,
+  .project-editorial {
+    scrollbar-gutter: stable;
+  }
 }

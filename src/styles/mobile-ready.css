@@ -1,0 +1,218 @@
+/**
+ * Mobile / touch — rifiniture responsive (zoom, gallerie, pagine sito).
+ * Breakpoint allineato al portfolio: max-width 900px.
+ */
+
+@media (max-width: 900px) {
+  /* Scrollbar: niente gutter fisso (evita shift orizzontale su iOS) */
+  .site-page,
+  .about-page,
+  .project-moda,
+  .project-moda-jump,
+  .project-isola,
+  .project-parigi,
+  .project-taboo,
+  .project-gallipoli,
+  .project-gallipoli-day,
+  .project-ernia,
+  .project-laurea,
+  .project-editorial {
+    scrollbar-gutter: auto;
+  }
+
+  /* ——— Zoom fullscreen ——— */
+  .zoom-backdrop {
+    height: 100vh;
+    height: 100dvh;
+    min-height: -webkit-fill-available;
+    touch-action: manipulation;
+  }
+
+  body.zoom-mode .split-screen-container .zoom-target {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding:
+      calc(max(3.25rem, env(safe-area-inset-top, 0px)) + 0.35rem)
+      max(0.65rem, env(safe-area-inset-right, 0px))
+      calc(max(6.5rem, env(safe-area-inset-bottom, 0px)) + 4.5rem)
+      max(0.65rem, env(safe-area-inset-left, 0px));
+    box-sizing: border-box;
+  }
+
+  body.zoom-mode .scaling-image-overlay {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.zoom-mode .scaling-image-overlay img {
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  body.zoom-mode .close-button {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 0;
+    z-index: 10060;
+  }
+
+  body.zoom-mode .close-button svg {
+    width: 44px;
+    height: 44px;
+  }
+
+  body.zoom-mode .image-title-overlay {
+    top: auto;
+    bottom: calc(max(0.85rem, env(safe-area-inset-bottom, 0px)) + 0.25rem);
+    left: max(0.75rem, env(safe-area-inset-left, 0px));
+    right: max(0.75rem, env(safe-area-inset-right, 0px));
+    width: auto;
+    max-width: none;
+    pointer-events: none;
+  }
+
+  body.zoom-mode .image-slide-title {
+    height: auto;
+    min-height: 0;
+    max-width: 100%;
+  }
+
+  body.zoom-mode .image-slide-title h1 {
+    font-size: clamp(1.35rem, 6.5vw, 2rem);
+    line-height: 1.08;
+    overflow-wrap: break-word;
+  }
+
+  body.zoom-mode .image-slide-number span {
+    font-size: 10px;
+  }
+
+  /* ——— L'isola: sottotitolo su una riga dove c'è spazio ——— */
+  .project-isola__subtitle {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  /* ——— Moda: galleria sequenza + safe area ——— */
+  .project-moda__hero {
+    min-height: 0;
+  }
+
+  .project-moda__hero-inner {
+    min-height: 0;
+  }
+
+  .project-moda__main {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+
+  .project-moda__gallery--sequence {
+    width: 100%;
+    max-width: 100%;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
+  .project-moda__card--seq {
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 4 / 5;
+    min-height: min(72vw, 420px);
+    max-height: min(85dvh, 720px);
+  }
+
+  .project-moda__card--seq img {
+    object-fit: cover;
+    object-position: center center;
+  }
+
+  /* ——— Pagine sito ——— */
+  .site-page,
+  .about-page {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  }
+
+  .projects-page__shell {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+
+  .projects-page__preview-frame {
+    height: min(56dvh, 520px);
+    min-height: min(44dvh, 380px);
+  }
+
+  .projects-index__btn {
+    min-height: 2.75rem;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .projects-page__foot-link {
+    min-height: 2.5rem;
+    padding: 0.35rem 0;
+    touch-action: manipulation;
+  }
+}
+
+@media (max-width: 640px) {
+  body.zoom-mode .split-screen-container .zoom-target {
+    padding-bottom: calc(max(5.5rem, env(safe-area-inset-bottom, 0px)) + 5rem);
+  }
+
+  .project-moda__title {
+    letter-spacing: 0.06em;
+    font-size: clamp(1.5rem, 9vw, 2.35rem);
+  }
+
+  .project-moda__hero-lede {
+    font-size: clamp(0.9rem, 3.6vw, 1rem);
+    line-height: 1.65;
+  }
+
+  .project-moda__card--seq {
+    min-height: min(68vw, 360px);
+    max-height: min(78dvh, 640px);
+  }
+
+  .projects-page__foot {
+    grid-template-columns: 1fr;
+    gap: 0.35rem;
+    text-align: center;
+  }
+
+  .projects-page__foot-link,
+  .projects-page__foot-link:nth-child(2),
+  .projects-page__foot-link:last-child {
+    justify-self: center;
+  }
+}
+
+@media (max-width: 380px) {
+  .project-isola__subtitle {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: unset;
+    letter-spacing: 0.12em;
+    font-size: 0.68rem;
+  }
+
+  .project-isola__title {
+    font-size: clamp(1.55rem, 10vw, 2rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zoom-backdrop {
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+  }
+}

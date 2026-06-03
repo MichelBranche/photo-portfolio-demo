@@ -36,10 +36,25 @@ export default function App() {
 
     // Stub layout (un tempo script-mobile.js / script-desktop.js).
     window.__PF_BREAKPOINT_PX__ = BREAKPOINT_PX;
-    window.__PF_IS_MOBILE_LAYOUT__ =
+    const syncMobileLayoutFlag = () => {
+      window.__PF_IS_MOBILE_LAYOUT__ =
+        typeof window.matchMedia === "function"
+          ? window.matchMedia(`(max-width: ${BREAKPOINT_PX}px)`).matches
+          : window.innerWidth <= BREAKPOINT_PX;
+    };
+    syncMobileLayoutFlag();
+    const mobileMq =
       typeof window.matchMedia === "function"
-        ? window.matchMedia(`(max-width: ${BREAKPOINT_PX}px)`).matches
-        : window.innerWidth <= BREAKPOINT_PX;
+        ? window.matchMedia(`(max-width: ${BREAKPOINT_PX}px)`)
+        : null;
+    const onMobileMqChange = () => syncMobileLayoutFlag();
+    if (mobileMq) {
+      if (typeof mobileMq.addEventListener === "function") {
+        mobileMq.addEventListener("change", onMobileMqChange);
+      } else if (typeof mobileMq.addListener === "function") {
+        mobileMq.addListener(onMobileMqChange);
+      }
+    }
 
     let gallery;
     let destroySiteTitleAnim = () => {};
@@ -123,6 +138,13 @@ export default function App() {
     return () => {
       destroySiteTitleAnim();
       destroyHeaderNavAnim();
+      if (mobileMq) {
+        if (typeof mobileMq.removeEventListener === "function") {
+          mobileMq.removeEventListener("change", onMobileMqChange);
+        } else if (typeof mobileMq.removeListener === "function") {
+          mobileMq.removeListener(onMobileMqChange);
+        }
+      }
     };
   }, []);
 

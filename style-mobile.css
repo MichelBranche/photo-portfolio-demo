@@ -287,6 +287,9 @@
     height: 100% !important;
     min-height: 100% !important;
     box-sizing: border-box;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
   }
 
   body.zoom-mode .scaling-image-overlay {

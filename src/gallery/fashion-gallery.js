@@ -145,6 +145,7 @@ export class FashionGallery {
     this._handleSplitAreaClickBound = (e) => this.handleSplitAreaClick(e);
     this._handleZoomBackdropClickBound = () => this.exitZoomMode();
     this._handleZoomOverlayClickBound = (e) => this.handleZoomOverlayClick(e);
+    this._zoomViewportResizeBound = () => this.onZoomViewportResize();
     this._zoomNavTouchStartBound = (e) => this.onZoomNavTouchStart(e);
     this._zoomNavTouchEndBound = (e) => this.onZoomNavTouchEnd(e);
     this._zoomNavTouchStartX = null;
@@ -6777,6 +6778,55 @@ export class FashionGallery {
       !!this.zoomState.scalingOverlay
     );
   }
+  _zoomMotionDurations() {
+    if (this.prefersReducedMotion) {
+      return { open: 0.02, close: 0.02, split: 0.02, refit: 0.02 };
+    }
+    const mobile =
+      typeof window !== "undefined" && window.__PF_IS_MOBILE_LAYOUT__;
+    if (mobile) {
+      return { open: 0.82, close: 0.78, split: 0.55, refit: 0.32 };
+    }
+    return { open: 1.1, close: 0.95, split: 1.2, refit: 0.38 };
+  }
+  attachZoomViewportListeners() {
+    if (typeof window === "undefined") return;
+    window.addEventListener("resize", this._zoomViewportResizeBound);
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener(
+        "resize",
+        this._zoomViewportResizeBound
+      );
+      window.visualViewport.addEventListener(
+        "scroll",
+        this._zoomViewportResizeBound
+      );
+    }
+  }
+  detachZoomViewportListeners() {
+    if (typeof window === "undefined") return;
+    window.removeEventListener("resize", this._zoomViewportResizeBound);
+    if (window.visualViewport) {
+      window.visualViewport.removeEventListener(
+        "resize",
+        this._zoomViewportResizeBound
+      );
+      window.visualViewport.removeEventListener(
+        "scroll",
+        this._zoomViewportResizeBound
+      );
+    }
+  }
+  onZoomViewportResize() {
+    if (
+      !this.zoomState.isActive ||
+      this.zoomState.closing ||
+      this.zoomState.opening
+    ) {
+      return;
+    }
+    this.refitZoomOverlayNatural(true);
+  }
   handleZoomOverlayClick(e) {
     if (!this.zoomState.isActive || this.zoomState.closing) return;
     const overlay = this.zoomState.scalingOverlay;
@@ -6871,17 +6921,39 @@ export class FashionGallery {
       onComplete
     });
   }
-  getZoomFitBoundsEl() {
+  getZoomFitBoundsRect() {
     const target = document.getElementById("zoomTarget");
     if (target && target.getBoundingClientRect) {
       const r = target.getBoundingClientRect();
-      if (r.width >= 64 && r.height >= 64) return target;
+      if (r.width >= 64 && r.height >= 64) {
+        const cs = getComputedStyle(target);
+        const pl = parseFloat(cs.paddingLeft) || 0;
+        const pr = parseFloat(cs.paddingRight) || 0;
+        const pt = parseFloat(cs.paddingTop) || 0;
+        const pb = parseFloat(cs.paddingBottom) || 0;
+        return {
+          left: r.left + pl,
+          top: r.top + pt,
+          width: Math.max(48, r.width - pl - pr),
+          height: Math.max(48, r.height - pt - pb)
+        };
+      }
     }
+    const vv = window.visualViewport;
+    const vw = vv ? vv.width : window.innerWidth;
+    const vh = vv ? vv.height : window.innerHeight;
+    const offL = vv ? vv.offsetLeft : 0;
+    const offT = vv ? vv.offsetTop : 0;
+    const mobile =
+      typeof window !== "undefined" && window.__PF_IS_MOBILE_LAYOUT__;
+    const padT = mobile ? 56 : 0;
+    const padB = mobile ? 88 : 0;
+    const padX = mobile ? 12 : 0;
     return {
-      left: 0,
-      top: 0,
-      width: window.innerWidth,
-      height: window.innerHeight
+      left: offL + padX,
+      top: offT + padT,
+      width: Math.max(48, vw - padX * 2),
+      height: Math.max(48, vh - padT - padB)
     };
   }
   refitZoomOverlayNatural(animate = true) {
@@ -6897,10 +6969,10 @@ export class FashionGallery {
       return;
     }
     const overlay = this.zoomState.scalingOverlay;
-    const bounds = this.getZoomFitBoundsEl();
+    const bounds = this.getZoomFitBoundsRect();
     if (animate) {
       this.animateZoomOverlayToNaturalFit(overlay, bounds, {
-        duration: 0.38,
+        duration: this._zoomMotionDurations().refit,
         ease: "power2.out"
       });
       return;
@@ -7139,11 +7211,13 @@ export class FashionGallery {
     document.body.classList.add("zoom-mode");
     const splitContainer = this.splitScreenContainer;
     splitContainer.classList.add("active");
+    const motionEnter = this._zoomMotionDurations();
     gsap.to(splitContainer, {
       opacity: 1,
-      duration: 1.2,
+      duration: motionEnter.split,
       ease: this.customEase
     });
+    this.attachZoomViewportListeners();
 
     const startFlip = (overlay) => {
       if (!this._zoomSessionAlive(zoomSession)) return;
@@ -7151,12 +7225,13 @@ export class FashionGallery {
       const runFit = () => {
         if (!this._zoomSessionAlive(zoomSession)) return;
         void splitContainer.offsetHeight;
-        const fitBounds = this.getZoomFitBoundsEl();
+        const fitBounds = this.getZoomFitBoundsRect();
+        const motion = this._zoomMotionDurations();
         const finishOpen = () =>
           this.completeZoomOpenUI(selectedItemData, zoomSession);
         gsap.set(overlay, { clearProps: "transform" });
         this.animateZoomOverlayToNaturalFit(overlay, fitBounds, {
-          duration: 1.1,
+          duration: motion.open,
           ease: this.customEase,
           onComplete: finishOpen
         });
@@ -7230,6 +7305,7 @@ export class FashionGallery {
     this.hideZoomBackdrop();
     this.soundSystem.play("close");
     this.detachZoomNavigationControls();
+    this.detachZoomViewportListeners();
     document.removeEventListener("keydown", this._handleZoomKeysBound);
     const splitLeft = document.getElementById("splitLeft");
     const splitRight = document.getElementById("splitRight");
@@ -7311,9 +7387,10 @@ export class FashionGallery {
     if (this.controlsContainer) {
       this.controlsContainer.classList.remove("split-mode");
     }
+    const motionExit = this._zoomMotionDurations();
     gsap.to(splitContainer, {
       opacity: 0,
-      duration: 0.8,
+      duration: motionExit.split,
       ease: "power2.out"
     });
     const overlay = this.zoomState.scalingOverlay;
@@ -7370,7 +7447,7 @@ export class FashionGallery {
         width: dest.width,
         height: dest.height,
         opacity: 0.35,
-        duration: 0.95,
+        duration: motionExit.close,
         ease: this.customEase,
         onComplete: finishExit,
         onInterrupt: finishExit

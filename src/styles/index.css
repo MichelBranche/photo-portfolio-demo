@@ -21,3 +21,6 @@
 
 /* Scrollbar personalizzata (dopo tutti i fogli progetto) */
 @import "./scrollbar.css";
+
+/* Mobile / touch (dopo scrollbar) */
+@import "./mobile-ready.css" (max-width: 900px);
