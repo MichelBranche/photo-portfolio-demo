@@ -5237,6 +5237,16 @@ export class FashionGallery {
       return;
     }
   }
+  /** Ripristina viewport home dopo pagine sito o layout progetto (opacity/visibility). */
+  restoreHomeViewport() {
+    if (!this.viewport) return;
+    gsap.killTweensOf(this.viewport);
+    gsap.set(this.viewport, {
+      visibility: "visible",
+      pointerEvents: "auto",
+      opacity: 1,
+    });
+  }
   setActiveProject(projectId) {
     if (!this.useLocalPortfolio) return;
     if (this.zoomState.isActive) return;
@@ -5245,6 +5255,10 @@ export class FashionGallery {
         ? null
         : String(projectId);
     const changed = this.activeProjectId !== normalized;
+    if (!normalized) {
+      this._suppressGridEntrance = false;
+      this.restoreHomeViewport();
+    }
     this.activeProjectId = normalized;
     if (normalized) {
       document.body.setAttribute("data-active-project", normalized);
@@ -8313,12 +8327,14 @@ export class FashionGallery {
       const onLogo = (e) => {
         if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (this.getOpenSitePageKey()) {
-          void this.closeAllSitePages();
-        }
-        if (this.useLocalPortfolio) {
-          this.setActiveProject(null);
-        }
+        void (async () => {
+          if (this.getOpenSitePageKey()) {
+            await this.closeAllSitePages();
+          }
+          if (this.useLocalPortfolio) {
+            this.setActiveProject(null);
+          }
+        })();
       };
       logo.addEventListener("click", onLogo);
       logo.addEventListener("keydown", onLogo);

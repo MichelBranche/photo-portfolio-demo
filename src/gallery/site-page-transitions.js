@@ -78,6 +78,10 @@ export function fadeViewportOut(viewport) {
 export function fadeViewportIn(viewport) {
   if (!viewport) return Promise.resolve();
   gsap.killTweensOf(viewport);
+  gsap.set(viewport, {
+    visibility: "visible",
+    pointerEvents: "auto",
+  });
   if (prefersReducedMotion()) {
     gsap.set(viewport, { opacity: 1 });
     return Promise.resolve();
