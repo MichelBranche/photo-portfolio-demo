@@ -7,6 +7,7 @@
   /* Scrollbar: niente gutter fisso (evita shift orizzontale su iOS) */
   .site-page,
   .about-page,
+  .project-h,
   .project-moda,
   .project-moda-jump,
   .project-isola,
@@ -98,6 +99,26 @@
     max-width: 100%;
   }
 
+  /* ——— Nude (horizontal-mixed): scroll unico + tap target foto ——— */
+  body.project-horizontal-active .project-h {
+    touch-action: pan-y;
+  }
+
+  .project-h__shell {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
+
+  .project-h-card {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body.project-reveal-active .project-h[data-animate="1"] .project-h__p,
+  body.project-reveal-active .project-h[data-animate="1"] .project-h-card {
+    transition: none;
+  }
+
   /* ——— Moda: galleria sequenza + safe area ——— */
   .project-moda__hero {
     min-height: 0;
@@ -156,11 +177,6 @@
     touch-action: manipulation;
   }
 
-  .projects-page__foot-link {
-    min-height: 2.5rem;
-    padding: 0.35rem 0;
-    touch-action: manipulation;
-  }
 }
 
 @media (max-width: 640px) {
@@ -183,17 +199,6 @@
     max-height: min(78dvh, 640px);
   }
 
-  .projects-page__foot {
-    grid-template-columns: 1fr;
-    gap: 0.35rem;
-    text-align: center;
-  }
-
-  .projects-page__foot-link,
-  .projects-page__foot-link:nth-child(2),
-  .projects-page__foot-link:last-child {
-    justify-self: center;
-  }
 }
 
 @media (max-width: 380px) {

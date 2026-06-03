@@ -18,21 +18,33 @@
   }
 
   .header-bar__nav {
-    gap: 0.2rem 0.75rem;
+    gap: 0.35rem 0.65rem;
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
+    overflow: visible;
+    row-gap: 0.15rem;
   }
 
   .header-panel__trigger,
   .header-nav-link,
   .header-about-link {
-    font-size: 19px;
-    padding: 0.55rem 0.15rem;
-    min-height: 3.5rem;
+    font-size: clamp(16px, 4.2vw, 19px);
+    padding: 0.45rem 0.2rem;
+    min-height: 2.75rem;
     align-items: center;
+    overflow: visible;
+    line-height: 1.15;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
+  }
+
+  .header-nav-link__label {
+    overflow: visible;
+  }
+
+  .header-nav-link__char {
+    transform: none !important;
   }
 
   .header-panel__trigger-plus,

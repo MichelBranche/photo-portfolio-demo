@@ -2,6 +2,9 @@
 
 .projects-page--editorial {
   padding: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   background: #000;
   color: rgba(255, 255, 255, 0.92);
 }
@@ -10,10 +13,13 @@
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  width: 100%;
+  max-width: min(96rem, 100%);
+  min-width: 0;
   min-height: 100vh;
   min-height: 100dvh;
-  max-width: min(96rem, 100%);
   margin: 0 auto;
+  overflow-x: hidden;
   padding: calc(var(--chrome-bar-height) + clamp(1.25rem, 3vh, 2rem))
     clamp(1.25rem, 3.5vw, 3rem)
     clamp(1.5rem, 4vh, 2.5rem);
@@ -51,6 +57,8 @@
   gap: clamp(2.5rem, 6vw, 5.5rem);
   align-items: stretch;
   min-height: min(72vh, 820px);
+  width: 100%;
+  min-width: 0;
 }
 
 .projects-page__list-col {
@@ -150,12 +158,20 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin-top: clamp(2rem, 5vh, 3rem);
   padding-top: clamp(1rem, 2.5vh, 1.35rem);
   border-top: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .projects-page__foot-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
   font-family: "TheGoodMonolith", monospace;
   font-size: clamp(0.88rem, 1vw, 1rem);
   font-weight: 400;
@@ -167,6 +183,8 @@
   border: none;
   padding: 0;
   cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
   transition: opacity 0.2s ease, color 0.2s ease;
 }
 
@@ -238,16 +256,39 @@ body.progetti-open .footer {
 
   .projects-page__preview-col {
     min-height: 0;
+    width: 100%;
+    max-width: 100%;
   }
 
   .projects-page__preview-frame {
     width: 100%;
+    max-width: 100%;
     height: min(62vh, 580px);
     min-height: min(50vh, 480px);
   }
 
   .projects-page__foot {
-    grid-template-columns: 1fr 1fr 1fr;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
+    text-align: center;
+  }
+
+  .projects-page__foot-link,
+  .projects-page__foot-link:first-child,
+  .projects-page__foot-link:nth-child(2),
+  .projects-page__foot-link:last-child {
+    justify-self: unset;
+    width: auto;
+    min-height: 2.75rem;
+    padding: 0.4rem 0.5rem;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
   }
 }
 

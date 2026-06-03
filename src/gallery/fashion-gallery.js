@@ -1236,6 +1236,32 @@ export class FashionGallery {
         .forEach((el) => el.classList.remove("is-inview"));
     }
   }
+  flushProjectHorizontalRevealInView() {
+    const root = this.projectHorizontalEl;
+    if (!root || root.dataset.animate !== "1") return;
+    const isMobile =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 900px)").matches;
+    const scrollEl = root.querySelector(".project-h__shell");
+    const container = isMobile && scrollEl ? scrollEl : null;
+    const bounds = container
+      ? container.getBoundingClientRect()
+      : {
+          top: 0,
+          bottom: window.innerHeight,
+          left: 0,
+          right: window.innerWidth,
+        };
+    root
+      .querySelectorAll(".project-h__p:not(.is-inview), .project-h-card:not(.is-inview)")
+      .forEach((el) => {
+        const r = el.getBoundingClientRect();
+        if (r.bottom > bounds.top + 10 && r.top < bounds.bottom - 10) {
+          el.classList.add("is-inview");
+          this._horizontalRevealIO?.unobserve(el);
+        }
+      });
+  }
   setupProjectHorizontalScrollReveal() {
     const root = this.projectHorizontalEl;
     if (!root) return;
@@ -1247,6 +1273,13 @@ export class FashionGallery {
       nodes.forEach((el) => el.classList.add("is-inview"));
       return;
     }
+    const isMobile =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 900px)").matches;
+    const scrollRoot =
+      isMobile && root.querySelector(".project-h__shell")
+        ? root.querySelector(".project-h__shell")
+        : null;
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((en) => {
@@ -1256,10 +1289,13 @@ export class FashionGallery {
           }
         });
       },
-      { root: null, rootMargin: "0px 0px -6% 0px", threshold: 0.12 }
+      scrollRoot
+        ? { root: scrollRoot, rootMargin: "0px 0px -2% 0px", threshold: 0.06 }
+        : { root: null, rootMargin: "0px 0px -6% 0px", threshold: 0.12 }
     );
     nodes.forEach((el) => io.observe(el));
     this._horizontalRevealIO = io;
+    requestAnimationFrame(() => this.flushProjectHorizontalRevealInView());
   }
   /**
    * Vista progetto: copertina 2×2 + testo; composizione adattiva per colonne (niente colonna testo da 1 cella stretta).

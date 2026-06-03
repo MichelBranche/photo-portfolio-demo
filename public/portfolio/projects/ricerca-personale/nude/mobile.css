@@ -1,2 +1,6 @@
-/* Opzionale: solo mobile con questa serie attiva (body[data-active-project="nude"]) */
-
+/* Nude — solo mobile (body[data-active-project="nude"]) */
+@media (max-width: 900px) {
+  .project-h__visual {
+    border-top-color: rgba(255, 255, 255, 0.08);
+  }
+}

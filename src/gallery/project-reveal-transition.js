@@ -262,12 +262,15 @@ function revealRestOfProject(gallery, target) {
   const targetEl = target?.host;
   const photoCells = [];
   const blurbCells = [];
+  const horizontalView = gallery.isProjectHorizontalMixedActive?.();
 
-  gallery.gridItems?.forEach((item) => {
-    if (!item.element || item.element === targetEl) return;
-    if (item.projectBlurb) blurbCells.push(item.element);
-    else photoCells.push(item.element);
-  });
+  if (!horizontalView) {
+    gallery.gridItems?.forEach((item) => {
+      if (!item.element || item.element === targetEl) return;
+      if (item.projectBlurb) blurbCells.push(item.element);
+      else photoCells.push(item.element);
+    });
+  }
 
   const tl = gsap.timeline({ delay: 0.08 });
 
@@ -305,7 +308,8 @@ function revealRestOfProject(gallery, target) {
     [
       ".project-concept__grid > *",
       ".project-concept__copy > *",
-      "#projectHorizontalTrack .project-h-card",
+      "#projectHorizontalArticle .project-h__p",
+      "#projectHorizontalTrack .project-h-card:not([data-project-reveal-anchor='1'])",
       "#projectEditorialLeft > *",
       "#projectEditorialRight > *",
       "#projectEditorialMobileGallery > *",
@@ -351,7 +355,12 @@ function revealRestOfProject(gallery, target) {
   }
 
   tl.to(".header", { opacity: 1, duration: 0.42, ease: "power2.out" }, 0.1);
-  tl.add(() => resumeGridMotion(gallery), "+=0.04");
+  tl.add(() => {
+    resumeGridMotion(gallery);
+    if (horizontalView && typeof gallery.flushProjectHorizontalRevealInView === "function") {
+      gallery.flushProjectHorizontalRevealInView();
+    }
+  }, "+=0.04");
 
   return asPromise(tl);
 }
