@@ -264,7 +264,30 @@
   text-wrap: balance;
 }
 
-/* ——— Galleria: ritmo da rivista, più aria ——— */
+/* ——— Galleria: sequenza shooting (ordine data.js, una colonna) ——— */
+.project-moda__gallery--sequence {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: clamp(1.35rem, 3vw, 2.35rem);
+  width: 100%;
+  max-width: min(920px, 100%);
+  margin: 0.2rem auto 0;
+}
+
+.project-moda__card--seq {
+  grid-column: auto;
+  width: 100%;
+  aspect-ratio: 4 / 5;
+  min-height: clamp(220px, 38vw, 560px);
+  max-height: min(78vh, 820px);
+}
+
+.project-moda__card--seq img {
+  object-position: center center;
+}
+
+/* ——— Galleria mosaic (legacy, non usata in Moda Shooting) ——— */
 .project-moda__gallery--mosaic {
   display: grid;
   grid-template-columns: repeat(12, 1fr);
@@ -400,6 +423,15 @@ body.project-zoom-enabled .project-moda__card {
     margin-left: 0;
   }
 
+  .project-moda__gallery--sequence {
+    gap: clamp(1.1rem, 2.8vw, 1.75rem);
+  }
+
+  .project-moda__card--seq {
+    min-height: clamp(200px, 52vw, 480px);
+    max-height: min(72vh, 640px);
+  }
+
   .project-moda__gallery--mosaic {
     grid-template-columns: repeat(6, 1fr);
     gap: 0.7rem;
@@ -442,6 +474,17 @@ body.project-zoom-enabled .project-moda__card {
     letter-spacing: 0.14em;
     font-size: 0.72rem;
     padding: 1.35rem 0.5rem;
+  }
+
+  .project-moda__gallery--sequence {
+    gap: 0.95rem;
+    max-width: 100%;
+  }
+
+  .project-moda__card--seq {
+    aspect-ratio: 3 / 4;
+    min-height: min(68vw, 300px);
+    max-height: none;
   }
 
   .project-moda__gallery--mosaic {

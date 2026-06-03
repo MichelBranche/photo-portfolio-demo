@@ -148,17 +148,17 @@
 }
 
 .project-isola__title {
-  margin: 0 0 0.65rem;
+  margin: 0 0 0.35rem;
   font-family: var(--font-project-title);
   font-size: clamp(2.35rem, 4.8vw, 3.65rem);
   font-weight: 400;
   line-height: 1.05;
   letter-spacing: 0.02em;
   color: var(--isola-paper);
-  text-wrap: balance;
 }
 
 .project-isola__subtitle {
+  display: block;
   margin: 0 0 1.35rem;
   font-family: "PPNeueMontreal", sans-serif;
   font-size: clamp(0.82rem, 1.25vw, 0.98rem);
@@ -166,6 +166,7 @@
   letter-spacing: 0.32em;
   text-transform: uppercase;
   color: var(--isola-sand-dim);
+  white-space: nowrap;
 }
 
 .project-isola__hero-lede {
@@ -576,9 +577,8 @@ body.project-zoom-enabled .project-isola__card {
   .project-isola__title {
     font-size: clamp(1.85rem, 10.5vw, 2.6rem);
     line-height: 1.07;
-    margin-bottom: 0.5rem;
+    margin-bottom: 0.35rem;
     max-width: 100%;
-    overflow-wrap: anywhere;
   }
 
   .project-isola__subtitle {
@@ -586,6 +586,7 @@ body.project-zoom-enabled .project-isola__card {
     letter-spacing: 0.16em;
     margin-bottom: 1rem;
     max-width: 100%;
+    white-space: nowrap;
   }
 
   .project-isola__hero-lede {

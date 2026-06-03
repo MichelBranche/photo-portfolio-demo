@@ -1,7 +1,7 @@
 /** Durata minima loader (maschera caricamenti velocissimi) */
-export const HOME_LOADING_MIN_MS = 600;
+export const HOME_LOADING_MIN_MS = 280;
 /** Dopo questo tempo il loader viene chiuso in ogni caso (rete bloccata, errori, ecc.) */
-export const HOME_LOADING_MAX_MS = 14000;
+export const HOME_LOADING_MAX_MS = 8000;
 
 let homeLoadingStart = 0;
 
@@ -44,6 +44,6 @@ export function dismissHomeLoading(onDone, options) {
       finish();
     };
     el.addEventListener("transitionend", onTransitionEnd);
-    window.setTimeout(finish, 800);
+    window.setTimeout(finish, 450);
   }, wait);
 }

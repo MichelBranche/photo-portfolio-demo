@@ -1,0 +1,205 @@
+/**
+ * Scrollbar personalizzata — portfolio (track sottile a destra, thumb oro/sabbia).
+ * Applicata a tutte le aree scrollabili verticali del sito.
+ */
+
+:root {
+  --pf-scrollbar-size: 8px;
+  --pf-scrollbar-track: rgba(255, 255, 255, 0.03);
+  --pf-scrollbar-thumb: rgba(201, 169, 98, 0.42);
+  --pf-scrollbar-thumb-hover: rgba(201, 169, 98, 0.68);
+  --pf-scrollbar-thumb-active: rgba(244, 240, 232, 0.82);
+  --pf-scrollbar-thumb-ink: rgba(42, 40, 37, 0.34);
+  --pf-scrollbar-thumb-ink-hover: rgba(42, 40, 37, 0.52);
+}
+
+@media (max-width: 900px) {
+  :root {
+    --pf-scrollbar-size: 5px;
+  }
+}
+
+/* Firefox */
+.site-page,
+.about-page,
+.project-moda,
+.project-moda-jump,
+.project-isola,
+.project-parigi,
+.project-taboo,
+.project-gallipoli,
+.project-gallipoli-day,
+.project-ernia,
+.project-laurea,
+.project-editorial,
+.project-h__scroll,
+.project-concept__grid-wrap,
+.header-panel__content,
+body.zoom-mode .image-title-overlay,
+body.zoom-mode .image-slide-description-scroll,
+body.project-zoom-enabled:not(.zoom-mode) #viewport {
+  scrollbar-width: thin;
+  scrollbar-color: var(--pf-scrollbar-thumb) var(--pf-scrollbar-track);
+}
+
+.project-laurea,
+.project-concept__grid-wrap {
+  scrollbar-color: var(--pf-scrollbar-thumb-ink) var(--pf-scrollbar-track);
+}
+
+/* WebKit (Chrome, Safari, Edge) */
+.site-page::-webkit-scrollbar,
+.about-page::-webkit-scrollbar,
+.project-moda::-webkit-scrollbar,
+.project-moda-jump::-webkit-scrollbar,
+.project-isola::-webkit-scrollbar,
+.project-parigi::-webkit-scrollbar,
+.project-taboo::-webkit-scrollbar,
+.project-gallipoli::-webkit-scrollbar,
+.project-gallipoli-day::-webkit-scrollbar,
+.project-ernia::-webkit-scrollbar,
+.project-laurea::-webkit-scrollbar,
+.project-editorial::-webkit-scrollbar,
+.project-h__scroll::-webkit-scrollbar,
+.project-concept__grid-wrap::-webkit-scrollbar,
+.header-panel__content::-webkit-scrollbar,
+body.zoom-mode .image-title-overlay::-webkit-scrollbar,
+body.zoom-mode .image-slide-description-scroll::-webkit-scrollbar,
+body.project-zoom-enabled:not(.zoom-mode) #viewport::-webkit-scrollbar {
+  width: var(--pf-scrollbar-size);
+  height: var(--pf-scrollbar-size);
+}
+
+.site-page::-webkit-scrollbar-track,
+.about-page::-webkit-scrollbar-track,
+.project-moda::-webkit-scrollbar-track,
+.project-moda-jump::-webkit-scrollbar-track,
+.project-isola::-webkit-scrollbar-track,
+.project-parigi::-webkit-scrollbar-track,
+.project-taboo::-webkit-scrollbar-track,
+.project-gallipoli::-webkit-scrollbar-track,
+.project-gallipoli-day::-webkit-scrollbar-track,
+.project-ernia::-webkit-scrollbar-track,
+.project-laurea::-webkit-scrollbar-track,
+.project-editorial::-webkit-scrollbar-track,
+.project-h__scroll::-webkit-scrollbar-track,
+.project-concept__grid-wrap::-webkit-scrollbar-track,
+.header-panel__content::-webkit-scrollbar-track,
+body.zoom-mode .image-title-overlay::-webkit-scrollbar-track,
+body.zoom-mode .image-slide-description-scroll::-webkit-scrollbar-track,
+body.project-zoom-enabled:not(.zoom-mode) #viewport::-webkit-scrollbar-track {
+  background: var(--pf-scrollbar-track);
+}
+
+.site-page::-webkit-scrollbar-thumb,
+.about-page::-webkit-scrollbar-thumb,
+.project-moda::-webkit-scrollbar-thumb,
+.project-moda-jump::-webkit-scrollbar-thumb,
+.project-isola::-webkit-scrollbar-thumb,
+.project-parigi::-webkit-scrollbar-thumb,
+.project-taboo::-webkit-scrollbar-thumb,
+.project-gallipoli::-webkit-scrollbar-thumb,
+.project-gallipoli-day::-webkit-scrollbar-thumb,
+.project-ernia::-webkit-scrollbar-thumb,
+.project-laurea::-webkit-scrollbar-thumb,
+.project-editorial::-webkit-scrollbar-thumb,
+.project-h__scroll::-webkit-scrollbar-thumb,
+.project-concept__grid-wrap::-webkit-scrollbar-thumb,
+.header-panel__content::-webkit-scrollbar-thumb,
+body.zoom-mode .image-title-overlay::-webkit-scrollbar-thumb,
+body.zoom-mode .image-slide-description-scroll::-webkit-scrollbar-thumb,
+body.project-zoom-enabled:not(.zoom-mode) #viewport::-webkit-scrollbar-thumb {
+  background-color: var(--pf-scrollbar-thumb);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.project-laurea::-webkit-scrollbar-thumb,
+.project-concept__grid-wrap::-webkit-scrollbar-thumb {
+  background-color: var(--pf-scrollbar-thumb-ink);
+}
+
+.site-page::-webkit-scrollbar-thumb:hover,
+.about-page::-webkit-scrollbar-thumb:hover,
+.project-moda::-webkit-scrollbar-thumb:hover,
+.project-moda-jump::-webkit-scrollbar-thumb:hover,
+.project-isola::-webkit-scrollbar-thumb:hover,
+.project-parigi::-webkit-scrollbar-thumb:hover,
+.project-taboo::-webkit-scrollbar-thumb:hover,
+.project-gallipoli::-webkit-scrollbar-thumb:hover,
+.project-gallipoli-day::-webkit-scrollbar-thumb:hover,
+.project-ernia::-webkit-scrollbar-thumb:hover,
+.project-laurea::-webkit-scrollbar-thumb:hover,
+.project-editorial::-webkit-scrollbar-thumb:hover,
+.project-h__scroll::-webkit-scrollbar-thumb:hover,
+.project-concept__grid-wrap::-webkit-scrollbar-thumb:hover,
+.header-panel__content::-webkit-scrollbar-thumb:hover,
+body.zoom-mode .image-title-overlay::-webkit-scrollbar-thumb:hover,
+body.zoom-mode .image-slide-description-scroll::-webkit-scrollbar-thumb:hover,
+body.project-zoom-enabled:not(.zoom-mode) #viewport::-webkit-scrollbar-thumb:hover {
+  background-color: var(--pf-scrollbar-thumb-hover);
+}
+
+.project-laurea::-webkit-scrollbar-thumb:hover,
+.project-concept__grid-wrap::-webkit-scrollbar-thumb:hover {
+  background-color: var(--pf-scrollbar-thumb-ink-hover);
+}
+
+.site-page::-webkit-scrollbar-thumb:active,
+.about-page::-webkit-scrollbar-thumb:active,
+.project-moda::-webkit-scrollbar-thumb:active,
+.project-moda-jump::-webkit-scrollbar-thumb:active,
+.project-isola::-webkit-scrollbar-thumb:active,
+.project-parigi::-webkit-scrollbar-thumb:active,
+.project-taboo::-webkit-scrollbar-thumb:active,
+.project-gallipoli::-webkit-scrollbar-thumb:active,
+.project-gallipoli-day::-webkit-scrollbar-thumb:active,
+.project-ernia::-webkit-scrollbar-thumb:active,
+.project-laurea::-webkit-scrollbar-thumb:active,
+.project-editorial::-webkit-scrollbar-thumb:active,
+.project-h__scroll::-webkit-scrollbar-thumb:active,
+.project-concept__grid-wrap::-webkit-scrollbar-thumb:active,
+.header-panel__content::-webkit-scrollbar-thumb:active,
+body.zoom-mode .image-title-overlay::-webkit-scrollbar-thumb:active,
+body.zoom-mode .image-slide-description-scroll::-webkit-scrollbar-thumb:active,
+body.project-zoom-enabled:not(.zoom-mode) #viewport::-webkit-scrollbar-thumb:active {
+  background-color: var(--pf-scrollbar-thumb-active);
+}
+
+.site-page::-webkit-scrollbar-corner,
+.about-page::-webkit-scrollbar-corner,
+.project-moda::-webkit-scrollbar-corner,
+.project-moda-jump::-webkit-scrollbar-corner,
+.project-isola::-webkit-scrollbar-corner,
+.project-parigi::-webkit-scrollbar-corner,
+.project-taboo::-webkit-scrollbar-corner,
+.project-gallipoli::-webkit-scrollbar-corner,
+.project-gallipoli-day::-webkit-scrollbar-corner,
+.project-ernia::-webkit-scrollbar-corner,
+.project-laurea::-webkit-scrollbar-corner,
+.project-editorial::-webkit-scrollbar-corner,
+.project-h__scroll::-webkit-scrollbar-corner,
+.project-concept__grid-wrap::-webkit-scrollbar-corner,
+.header-panel__content::-webkit-scrollbar-corner,
+body.zoom-mode .image-title-overlay::-webkit-scrollbar-corner,
+body.zoom-mode .image-slide-description-scroll::-webkit-scrollbar-corner,
+body.project-zoom-enabled:not(.zoom-mode) #viewport::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Pagine principali: spazio fisso per la barra a destra (niente salto layout) */
+.site-page,
+.about-page,
+.project-moda,
+.project-moda-jump,
+.project-isola,
+.project-parigi,
+.project-taboo,
+.project-gallipoli,
+.project-gallipoli-day,
+.project-ernia,
+.project-laurea,
+.project-editorial {
+  scrollbar-gutter: stable;
+}

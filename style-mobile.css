@@ -2,14 +2,14 @@
 
 @media (max-width: 640px) {
   :root {
-    --chrome-bar-height: calc(4.2rem + env(safe-area-inset-top, 0px));
+    --chrome-bar-height: calc(5.1rem + env(safe-area-inset-top, 0px));
   }
 
   .header {
     padding-left: max(0.65rem, env(safe-area-inset-left, 0px));
     padding-right: max(0.65rem, env(safe-area-inset-right, 0px));
-    padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
-    padding-bottom: 0.5rem;
+    padding-top: calc(0.65rem + env(safe-area-inset-top, 0px));
+    padding-bottom: 0.65rem;
   }
 
   .header-bar {
@@ -25,21 +25,23 @@
   }
 
   .header-panel__trigger,
+  .header-nav-link,
   .header-about-link {
-    font-size: 17px;
-    padding: 0.5rem 0.12rem;
-    min-height: 3rem;
+    font-size: 19px;
+    padding: 0.55rem 0.15rem;
+    min-height: 3.5rem;
     align-items: center;
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
   }
 
-  .header-panel__trigger-plus {
-    font-size: 15px;
+  .header-panel__trigger-plus,
+  .header-nav-link__plus {
+    font-size: 17px;
   }
 
   .logo-container {
-    min-height: 3rem;
+    min-height: 3.5rem;
     height: auto;
     padding: 0.2rem 0.25rem 0.2rem 0;
     margin-left: -0.12rem;
@@ -52,12 +54,12 @@
   }
 
   .logo-letter {
-    font-size: 1.4rem;
+    font-size: 1.65rem;
   }
 
   .logo-mark {
-    width: 3.75rem;
-    min-height: 1.65rem;
+    width: 4.4rem;
+    min-height: 1.95rem;
   }
 }
 
@@ -288,7 +290,12 @@
   }
 
   body.zoom-mode .scaling-image-overlay {
-    background: #000;
+    background: transparent;
+  }
+
+  .zoom-backdrop {
+    -webkit-backdrop-filter: blur(12px) saturate(0.9);
+    backdrop-filter: blur(12px) saturate(0.9);
   }
 
   body.zoom-mode .scaling-image-overlay img {

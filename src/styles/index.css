@@ -1,0 +1,23 @@
+/* Foglio base condiviso */
+@import "../../style-shared.css";
+@import "./projects-page.css";
+@import "./project-reveal.css";
+
+/* Stili per-progetto (un tempo <link> nell'head di index.html) */
+@import "../../css/projects/project-nude-editorial.css";
+@import "../../css/projects/project-lisola.css";
+@import "../../css/projects/project-parigi.css";
+@import "../../css/projects/project-taboo.css";
+@import "../../css/projects/project-moda.css";
+@import "../../css/projects/project-moda-jump.css";
+@import "../../css/projects/project-gallipoli.css";
+@import "../../css/projects/project-gallipoli-day.css";
+@import "../../css/projects/project-ernia.css";
+@import "../../css/projects/project-laurea.css";
+
+/* Gating breakpoint 900px (un tempo via attributo media sul <link>) */
+@import "../../style-desktop.css" (min-width: 901px);
+@import "../../style-mobile.css" (max-width: 900px);
+
+/* Scrollbar personalizzata (dopo tutti i fogli progetto) */
+@import "./scrollbar.css";

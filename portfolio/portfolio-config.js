@@ -63,6 +63,7 @@ var __NUDE_PROJECT_SUMMARY_PARAGRAPHS__ = [
 /** Testi / layout L'isola: il manifest Drive non invia questi campi → senza patch resta la griglia standard. */
 var __L_ISOLA_LAYOUT_PATCH__ = {
   layout: "isola",
+  title: "L'isola",
   subtitle: "Fuerteventura",
   heroImage: "01_fuerteventura-copertina.webp",
   isolaHeroIntro:

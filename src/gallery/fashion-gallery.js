@@ -13,6 +13,14 @@ import {
   pfSlideshowSpeedMultiplier,
 } from "./pf-performance.js";
 import { dismissHomeLoading, homeLoadingFlags } from "./home-loading.js";
+import { SITE_PAGES, sitePageKeyFromHash } from "./site-pages.js";
+import { buildProjectsPageIndex } from "./projects-page.js";
+import {
+  fadeViewportIn,
+  fadeViewportOut,
+  runSitePageEnter,
+  runSitePageExit,
+} from "./site-page-transitions.js";
 
 gsap.registerPlugin(CustomEase, Flip);
 
@@ -29,7 +37,12 @@ export class FashionGallery {
     this.controlsContainer = document.getElementById("controlsContainer");
     this.soundToggle = document.getElementById("soundToggle");
     this.aboutSection = document.getElementById("about");
+    this.projectsSection = document.getElementById("progetti");
+    this.contactsSection = document.getElementById("contatti");
     this.aboutNavLink = document.getElementById("aboutNavLink");
+    this.projectsNavLink = document.getElementById("projectsNavLink");
+    this.contactNavLink = document.getElementById("contactNavLink");
+    this._sitePageTransitioning = false;
     this.projectConceptEl = document.getElementById("projectConceptView");
     this.projectConceptGrid = document.getElementById("projectConceptGrid");
     this.conceptHeroItemData = null;
@@ -102,13 +115,22 @@ export class FashionGallery {
       zoomLevelLocked: true
     };
     // State
+    this._zoomSession = 0;
     this.zoomState = {
       isActive: false,
+      closing: false,
       selectedItem: null,
       flipAnimation: null,
-      scalingOverlay: null
+      scalingOverlay: null,
+      backdropEl: null,
+      opening: false,
+      pendingRefit: false
     };
     this.gridItems = [];
+    /** Home: griglia fissa 3 righe × 4 colonne (12 copertine), centrata. */
+    this.coverHomeActive = false;
+    this.homeGridCols = 4;
+    this.homeGridRows = 3;
     this.formationWaveTimer = null;
     this.gridDimensions = {};
     this.lastValidPosition = {
@@ -121,6 +143,8 @@ export class FashionGallery {
     this._editorialImageObserver = null;
     this._handleZoomKeysBound = (e) => this.handleZoomKeys(e);
     this._handleSplitAreaClickBound = (e) => this.handleSplitAreaClick(e);
+    this._handleZoomBackdropClickBound = () => this.exitZoomMode();
+    this._handleZoomOverlayClickBound = (e) => this.handleZoomOverlayClick(e);
     this._zoomNavTouchStartBound = (e) => this.onZoomNavTouchStart(e);
     this._zoomNavTouchEndBound = (e) => this.onZoomNavTouchEnd(e);
     this._zoomNavTouchStartX = null;
@@ -847,9 +871,66 @@ export class FashionGallery {
   }
   getDisplayItems() {
     if (!this.useLocalPortfolio) return [];
-    if (!this.activeProjectId) return this.catalog;
+    if (!this.activeProjectId) return this.getHomeCoverItems();
     const pid = String(this.activeProjectId);
     return this.catalog.filter((e) => String(e.projectId) === pid);
+  }
+  /**
+   * Home: una sola copertina per progetto (heroImage del progetto, fallback alla
+   * prima immagine). Mantiene l'ordine canonico __PORTFOLIO_PROJECT_ORDER__.
+   */
+  getHomeCoverItems() {
+    const projects =
+      (typeof window !== "undefined" && window.__PORTFOLIO_PROJECTS__) || [];
+    const heroByProject = new Map();
+    projects.forEach((p) => {
+      if (p && p.id != null) {
+        heroByProject.set(String(p.id), p.heroImage || "");
+      }
+    });
+
+    const byProject = new Map();
+    for (const entry of this.catalog) {
+      const pid = String(entry.projectId);
+      if (!byProject.has(pid)) byProject.set(pid, []);
+      byProject.get(pid).push(entry);
+    }
+
+    const pickCover = (entries) => {
+      if (!entries || entries.length === 0) return null;
+      const sorted = [...entries].sort(
+        (a, b) => (a.indexInProject ?? 0) - (b.indexInProject ?? 0)
+      );
+      const heroFile = heroByProject.get(String(sorted[0].projectId)) || "";
+      if (heroFile) {
+        const hit = sorted.find(
+          (e) => String(e.file || "") === String(heroFile)
+        );
+        if (hit) return hit;
+      }
+      return sorted[0];
+    };
+
+    const order =
+      (typeof window !== "undefined" && window.__PORTFOLIO_PROJECT_ORDER__) ||
+      [];
+    const orderedIds = order.length > 0 ? order.map(String) : [];
+
+    const covers = [];
+    const seen = new Set();
+    for (const pid of orderedIds) {
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      const cover = pickCover(byProject.get(pid));
+      if (cover) covers.push(cover);
+    }
+    /* Progetti non elencati in ORDER (es. solo da manifest Drive): in coda. */
+    for (const pid of byProject.keys()) {
+      if (seen.has(pid)) continue;
+      const cover = pickCover(byProject.get(pid));
+      if (cover) covers.push(cover);
+    }
+    return covers.slice(0, this.homeGridCols * this.homeGridRows);
   }
   /** Mobile + griglia standard progetto: layout a colonna (no concept / NUDE strip). */
   mobileProjectFeedContext() {
@@ -900,6 +981,7 @@ export class FashionGallery {
     if (this.useLocalPortfolio) {
       const list = this.getDisplayItems();
       if (this.isProjectFilterActive()) {
+        this.coverHomeActive = false;
         const sorted = [...list].sort(
           (a, b) => (a.indexInProject ?? 0) - (b.indexInProject ?? 0)
         );
@@ -935,14 +1017,16 @@ export class FashionGallery {
         this.config.rows = Math.max(1, Math.ceil(n / this.config.cols) || 1);
         return sorted;
       }
-      this.config.currentZoom = 0.6;
-      this.config.cols = 12;
-      this.config.rows = Math.max(
-        1,
-        Math.ceil(list.length / this.config.cols)
+      this.coverHomeActive = true;
+      this.config.cols = this.homeGridCols;
+      this.config.rows = this.homeGridRows;
+      this.config.currentZoom = this.computeProjectViewFitZoom(
+        this.homeGridCols,
+        this.homeGridRows
       );
       return list;
     }
+    this.coverHomeActive = false;
     this.config.rows = 8;
     this.config.cols = 12;
     const len = this.config.rows * this.config.cols;
@@ -1341,6 +1425,23 @@ export class FashionGallery {
     }
     return { rows: Math.max(1, maxBottomRow), placements };
   }
+  /** Home: 3×4 righe/colonne fisse, una foto per cella (nessun 2×2 casuale). */
+  computeGridPlacementsHome(items) {
+    const cols = this.homeGridCols;
+    const rows = this.homeGridRows;
+    const max = cols * rows;
+    const placements = [];
+    for (let i = 0; i < items.length && i < max; i++) {
+      placements.push({
+        entry: items[i],
+        row: Math.floor(i / cols),
+        col: i % cols,
+        spanCols: 1,
+        spanRows: 1
+      });
+    }
+    return { rows, placements };
+  }
   /**
    * Posiziona le card su una griglia; alcune sono 2×2 celle (~4× area) in modo casuale.
    */
@@ -1427,9 +1528,7 @@ export class FashionGallery {
     };
   }
   closeHeaderPanels() {
-    document.querySelectorAll("details.header-panel").forEach((d) => {
-      d.open = false;
-    });
+    /* Legacy: i pannelli <details> non sono più in header. */
   }
   /** Una singola serie selezionata: niente drift né formation sulle card. */
   projectOrdinalInPortfolio(projectId) {
@@ -1555,6 +1654,7 @@ export class FashionGallery {
     heroImg.src = s0.url;
     heroImg.alt = s0.alt;
     heroImg.loading = "eager";
+    this.markProjectRevealAnchor(heroImg);
 
     const numEl = document.getElementById("projectConceptNum");
     const nameEl = document.getElementById("projectConceptName");
@@ -1653,13 +1753,75 @@ export class FashionGallery {
     return pfMobileLayout();
   }
   /** Solo progetti con `layout: "concept"` in __PORTFOLIO_PROJECTS__ (es. Anca & Edward). */
-  getActiveProjectRecord() {
-    if (!this.isProjectFilterActive()) return null;
+  getProjectRecord(projectId) {
     const list = window.__PORTFOLIO_PROJECTS__;
     if (!Array.isArray(list)) return null;
-    return (
-      list.find((p) => String(p.id) === String(this.activeProjectId)) || null
-    );
+    return list.find((p) => String(p.id) === String(projectId)) || null;
+  }
+  getActiveProjectRecord() {
+    if (!this.isProjectFilterActive()) return null;
+    return this.getProjectRecord(this.activeProjectId);
+  }
+  /**
+   * Indice della prima foto mostrata in vista progetto (lead / hero / prima card editoriale).
+   */
+  resolveProjectRevealLeadIndex(project) {
+    const files = project?.images || [];
+    if (!files.length) return 0;
+    const layout = String(project.layout || "");
+    const heroByFile =
+      layout === "moda" ||
+      layout === "isola" ||
+      layout === "parigi" ||
+      layout === "taboo" ||
+      layout === "modaJump" ||
+      layout === "gallipoliDay" ||
+      layout === "gallipoliFestival" ||
+      layout === "erniaLive" ||
+      layout === "laureaAlbum";
+    if (heroByFile && project.heroImage) {
+      const hi = files.findIndex((raw) => {
+        const name =
+          typeof raw === "string" ? raw : raw && raw.file ? raw.file : "";
+        return String(name) === String(project.heroImage);
+      });
+      if (hi >= 0) return hi;
+    }
+    return 0;
+  }
+  /** URL anteprima Progetti = stessa immagine della prima foto in vista serie. */
+  resolveProjectRevealImage(projectId) {
+    const project = this.getProjectRecord(projectId);
+    if (!project) {
+      return { url: "", fullImageUrl: "", indexInProject: 0, file: "" };
+    }
+    const files = project.images || [];
+    const indexInProject = this.resolveProjectRevealLeadIndex(project);
+    const raw = files[indexInProject] ?? files[0];
+    const resolved = this.resolvePortfolioImage(project, raw, indexInProject);
+    const entry = {
+      type: "local",
+      projectId: project.id,
+      driveFileId: resolved.driveFileId || "",
+      indexInProject,
+    };
+    let url = resolved.url;
+    if (String(project.layout) === "editorial") {
+      url = this.resolveEditorialCardDisplayUrl(entry, url);
+    }
+    return {
+      url,
+      fullImageUrl: resolved.fullImageUrl || url,
+      indexInProject,
+      file: resolved.file,
+    };
+  }
+  markProjectRevealAnchor(el) {
+    if (typeof document === "undefined") return;
+    document.querySelectorAll("[data-project-reveal-anchor]").forEach((node) => {
+      delete node.dataset.projectRevealAnchor;
+    });
+    if (el) el.dataset.projectRevealAnchor = "1";
   }
   isProjectConceptLayoutActive() {
     const p = this.getActiveProjectRecord();
@@ -1764,6 +1926,17 @@ export class FashionGallery {
     if (offset % 2 === 0 && index + 1 < total) return "landscape";
     return "landscape-wide";
   }
+  /** Colonna editoriale desktop: alternata o override da data.js (`editorialColumnOverrides`). */
+  pickEditorialColumnSide(itemIndex, leftEl, rightEl) {
+    const rec = this.getActiveProjectRecord();
+    const map = rec && rec.editorialColumnOverrides;
+    if (map && typeof map === "object") {
+      const forced = map[itemIndex] ?? map[String(itemIndex)];
+      if (forced === "left" || forced === 0) return leftEl;
+      if (forced === "right" || forced === 1) return rightEl;
+    }
+    return itemIndex % 2 === 0 ? leftEl : rightEl;
+  }
   appendEditorialCard(containerEl, entry, variant, itemIndex, editorialOpts) {
     if (!containerEl) return;
     const cfg =
@@ -1818,6 +1991,9 @@ export class FashionGallery {
     img.alt = activeSlide.alt;
     btn.appendChild(img);
     containerEl.appendChild(btn);
+    if (itemIndex === 0 && variant !== "finale") {
+      this.markProjectRevealAnchor(btn);
+    }
     const itemData = {
       element: btn,
       img,
@@ -1921,9 +2097,7 @@ export class FashionGallery {
       const v = this.pickEditorialCardVariant(i, stripCount);
       const target = useMobile
         ? mobileGal
-        : i % 2 === 0
-          ? left
-          : right;
+        : this.pickEditorialColumnSide(i, left, right);
       if (target) {
         this.appendEditorialCard(target, entries[i], v, i, {
           deferLoad: useMobile && i >= 2
@@ -2155,6 +2329,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.parigiHeroItemData = {
@@ -2410,6 +2585,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.modaJumpHeroItemData = {
@@ -2690,6 +2866,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.gallipoliHeroItemData = {
@@ -2982,6 +3159,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.gallipoliDayHeroItemData = {
@@ -3302,6 +3480,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.erniaHeroItemData = {
@@ -3575,6 +3754,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.laureaHeroItemData = {
@@ -3886,6 +4066,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.tabooHeroItemData = {
@@ -4086,6 +4267,37 @@ export class FashionGallery {
     nodes.forEach((el) => io.observe(el));
     this._modaRevealIO = io;
   }
+  /** Ordine shooting da data.js locale (registry), anche con manifest Drive. */
+  sortCatalogEntriesByRegistryImageOrder(entries) {
+    if (!entries || !entries.length) return entries || [];
+    const pid = String(entries[0].projectId || "");
+    const reg =
+      (typeof window !== "undefined" &&
+        window.__PORTFOLIO_PROJECT_REGISTRY__) ||
+      [];
+    const local = reg.find((p) => p && String(p.id) === pid);
+    const files = local && Array.isArray(local.images) ? local.images : null;
+    if (!files || !files.length) {
+      return [...entries].sort((a, b) =>
+        String(a.file || "").localeCompare(String(b.file || ""), undefined, {
+          numeric: true,
+          sensitivity: "base"
+        })
+      );
+    }
+    const rank = new Map(files.map((f, i) => [String(f), i]));
+    return [...entries].sort((a, b) => {
+      const fa = String(a.file || "");
+      const fb = String(b.file || "");
+      const ra = rank.has(fa) ? rank.get(fa) : 1e6 + (a.indexInProject ?? 0);
+      const rb = rank.has(fb) ? rank.get(fb) : 1e6 + (b.indexInProject ?? 0);
+      if (ra !== rb) return ra - rb;
+      return fa.localeCompare(fb, undefined, {
+        numeric: true,
+        sensitivity: "base"
+      });
+    });
+  }
   /**
    * Galleria Moda: ritmo da rivista — doppie verticali, full, verticale hero, coppie orizzontali.
    */
@@ -4181,8 +4393,10 @@ export class FashionGallery {
     if (heroBtn) heroBtn.disabled = true;
 
     const rawItems = this.getDisplayItemsForGrid();
-    const entries = [...rawItems].sort(
-      (a, b) => (a.indexInProject ?? 0) - (b.indexInProject ?? 0)
+    const entries = this.sortCatalogEntriesByRegistryImageOrder(
+      [...rawItems].sort(
+        (a, b) => (a.indexInProject ?? 0) - (b.indexInProject ?? 0)
+      )
     );
     const rec = this.getActiveProjectRecord();
     const pid = entries[0]?.projectId;
@@ -4209,6 +4423,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.modaHeroItemData = {
@@ -4333,8 +4548,12 @@ export class FashionGallery {
     const galleryEntries =
       entries.length <= 1 ? [] : entries.filter((_, i) => i !== heroIdx);
     galleryEntries.forEach((entry, i) => {
-      const spanCls = this.pickModaGalleryClassList(i);
-      this.appendModaGalleryCard(galleryEl, entry, spanCls, i);
+      this.appendModaGalleryCard(
+        galleryEl,
+        entry,
+        "project-moda__card--seq",
+        i
+      );
     });
 
     root.hidden = false;
@@ -4513,6 +4732,7 @@ export class FashionGallery {
       if (sh0) {
         heroImg.src = sh0.url;
         heroImg.alt = sh0.alt || "";
+        this.markProjectRevealAnchor(heroImg);
         if (heroBtn) {
           heroBtn.disabled = false;
           this.isolaHeroItemData = {
@@ -4574,11 +4794,18 @@ export class FashionGallery {
         label || `PROJECT ${String(ord).padStart(2, "0")}`;
     }
     const titleEl = document.getElementById("projectIsolaTitle");
-    if (titleEl) titleEl.textContent = (rec && rec.title) || "";
     const subEl = document.getElementById("projectIsolaSubtitle");
+    let isolaTitleMain = (rec && rec.title) || "";
+    let isolaTitlePlace = (rec && rec.subtitle) || "";
+    const isolaDashSplit = isolaTitleMain.match(/^(.+?)\s*[-—–]\s*(.+)$/);
+    if (isolaDashSplit) {
+      isolaTitleMain = isolaDashSplit[1].trim();
+      if (!isolaTitlePlace) isolaTitlePlace = isolaDashSplit[2].trim();
+    }
+    if (titleEl) titleEl.textContent = isolaTitleMain;
     if (subEl) {
-      subEl.textContent = (rec && rec.subtitle) || "";
-      subEl.hidden = !rec?.subtitle;
+      subEl.textContent = isolaTitlePlace;
+      subEl.hidden = !isolaTitlePlace;
     }
     const introEl = document.getElementById("projectIsolaHeroIntro");
     if (introEl) {
@@ -4733,6 +4960,7 @@ export class FashionGallery {
     img.loading = itemIndex < 6 ? "eager" : "lazy";
     btn.appendChild(img);
     trackEl.appendChild(btn);
+    if (itemIndex === 0) this.markProjectRevealAnchor(btn);
     const itemData = {
       element: btn,
       img,
@@ -4834,116 +5062,179 @@ export class FashionGallery {
 
     this.setupProjectHorizontalScrollReveal();
   }
-  isAboutOpen() {
-    return document.body.classList.contains("about-open");
-  }
-  _applyAboutOpenState(open) {
-    const el = this.aboutSection;
-    if (!el) return;
-    if (open) {
-      document.body.classList.add("about-open");
-      el.hidden = false;
-      el.setAttribute("aria-hidden", "false");
-      if (this.aboutNavLink) {
-        this.aboutNavLink.setAttribute("aria-current", "page");
-      }
-      el.scrollTop = 0;
-    } else {
-      document.body.classList.remove("about-open");
-      el.hidden = true;
-      el.setAttribute("aria-hidden", "true");
-      if (this.aboutNavLink) {
-        this.aboutNavLink.removeAttribute("aria-current");
-      }
+  getOpenSitePageKey() {
+    for (const [key, cfg] of Object.entries(SITE_PAGES)) {
+      if (document.body.classList.contains(cfg.bodyClass)) return key;
     }
+    return null;
+  }
+  isAboutOpen() {
+    return document.body.classList.contains(SITE_PAGES.about.bodyClass);
+  }
+  _getSitePageElement(key) {
+    const cfg = SITE_PAGES[key];
+    if (!cfg) return null;
+    if (key === "about") {
+      return this.aboutSection || document.getElementById(cfg.sectionId);
+    }
+    if (key === "progetti") {
+      return this.projectsSection || document.getElementById(cfg.sectionId);
+    }
+    if (key === "contatti") {
+      return this.contactsSection || document.getElementById(cfg.sectionId);
+    }
+    return document.getElementById(cfg.sectionId);
+  }
+  _applySitePageDomOpen(key) {
+    const cfg = SITE_PAGES[key];
+    if (!cfg) return null;
+    const el = this._getSitePageElement(key);
+    const nav = document.getElementById(cfg.navId);
+    if (!el) return null;
+    document.body.classList.add(cfg.bodyClass);
+    el.removeAttribute("hidden");
+    el.setAttribute("aria-hidden", "false");
+    if (nav) nav.setAttribute("aria-current", "page");
+    el.scrollTop = 0;
+    return el;
+  }
+  _applySitePageDomClose(key) {
+    const cfg = SITE_PAGES[key];
+    if (!cfg) return;
+    const el = this._getSitePageElement(key);
+    const nav = document.getElementById(cfg.navId);
+    document.body.classList.remove(cfg.bodyClass);
+    if (el) {
+      el.setAttribute("hidden", "");
+      el.setAttribute("aria-hidden", "true");
+      gsap.set(el, { clearProps: "all" });
+    }
+    if (nav) nav.removeAttribute("aria-current");
+  }
+  async closeAllSitePages(options) {
+    const opts = options || {};
+    if (this._sitePageTransitioning && !opts.force) return;
+    const wasOpen = this.getOpenSitePageKey();
+    if (!wasOpen) return;
+
+    this._sitePageTransitioning = true;
+    try {
+      const el = this._getSitePageElement(wasOpen);
+      if (opts.skipExitAnimation) {
+        if (el) gsap.set(el, { autoAlpha: 0 });
+      } else {
+        await runSitePageExit(el);
+      }
+      this._applySitePageDomClose(wasOpen);
+      if (!opts.skipViewportFadeIn) {
+        await fadeViewportIn(this.viewport);
+      }
+
+      if (
+        !opts.skipHash &&
+        sitePageKeyFromHash(window.location.hash) &&
+        window.history.replaceState
+      ) {
+        window.history.replaceState(
+          null,
+          "",
+          window.location.pathname + window.location.search
+        );
+      }
+    } finally {
+      this._sitePageTransitioning = false;
+    }
+  }
+  async openSitePage(key, options) {
+    const opts = options || {};
+    const cfg = SITE_PAGES[key];
+    if (!cfg || this.zoomState.isActive || this._sitePageTransitioning) return;
+    if (this.getOpenSitePageKey() === key) return;
+
+    this._sitePageTransitioning = true;
+    try {
+      const current = this.getOpenSitePageKey();
+
+      if (opts.skipAnimation) {
+        if (current && current !== key) {
+          this._applySitePageDomClose(current);
+        } else if (!current) {
+          await fadeViewportOut(this.viewport);
+        }
+        if (key === "progetti") this.buildProjectNav();
+        const el = this._applySitePageDomOpen(key);
+        if (el) gsap.set(el, { autoAlpha: 1, clearProps: "transform" });
+      } else {
+        if (current && current !== key) {
+          const prevEl = this._getSitePageElement(current);
+          await runSitePageExit(prevEl);
+          this._applySitePageDomClose(current);
+        } else if (!current) {
+          await fadeViewportOut(this.viewport);
+        }
+        if (key === "progetti") this.buildProjectNav();
+        const el = this._applySitePageDomOpen(key);
+        await runSitePageEnter(el);
+      }
+
+      if (!opts.skipHistory && window.history) {
+        const target = cfg.hash;
+        if (window.location.hash !== target) {
+          window.history.pushState({ sitePage: key }, "", target);
+        }
+      }
+    } finally {
+      this._sitePageTransitioning = false;
+    }
+  }
+  toggleSitePage(key) {
+    if (this.getOpenSitePageKey() === key) {
+      void this.closeAllSitePages();
+    } else {
+      void this.openSitePage(key);
+    }
+  }
+  _handleSitePageHashNavigation(animate) {
+    if (this.zoomState.isActive || this._sitePageTransitioning) return;
+    const key = sitePageKeyFromHash(window.location.hash);
+    const open = this.getOpenSitePageKey();
+    if (!key && open) {
+      void this.closeAllSitePages({ skipHash: true });
+      return;
+    }
+    if (!key) return;
+    if (key === "progetti" && !this.useLocalPortfolio) return;
+    if (key === open) return;
+    void this.openSitePage(key, {
+      skipHistory: true,
+      skipAnimation: animate === false,
+    });
+  }
+  syncSitePageFromHash() {
+    this._handleSitePageHashNavigation(false);
   }
   openAboutSection(options) {
-    const opts = options || {};
-    if (this.zoomState.isActive) return;
-    this.closeHeaderPanels();
-    if (this.isAboutOpen()) return;
-    this._applyAboutOpenState(true);
-    if (
-      !opts.skipHistory &&
-      window.history &&
-      window.location.hash !== "#about"
-    ) {
-      window.history.pushState({ about: 1 }, "", "#about");
-    }
+    void this.openSitePage("about", options);
   }
   closeAboutSection(options) {
-    const opts = options || {};
     if (!this.isAboutOpen()) return;
-    this._applyAboutOpenState(false);
-    if (
-      !opts.skipHash &&
-      window.location.hash === "#about" &&
-      window.history.replaceState
-    ) {
-      window.history.replaceState(
-        null,
-        "",
-        window.location.pathname + window.location.search
-      );
-    }
+    void this.closeAllSitePages(options);
   }
   buildProjectNav() {
-    const projectsPanel = document.getElementById("headerPanelProjects");
-    if (projectsPanel) {
-      projectsPanel.hidden = !this.useLocalPortfolio;
+    if (this.projectsNavLink) {
+      if (this.useLocalPortfolio) {
+        this.projectsNavLink.removeAttribute("hidden");
+      } else {
+        this.projectsNavLink.setAttribute("hidden", "");
+      }
     }
-    const ul = document.getElementById("projectNav");
-    if (!ul || !this.useLocalPortfolio) return;
-    ul.innerHTML = "";
-    const addLink = (label, id) => {
-      const li = document.createElement("li");
-      const a = document.createElement("a");
-      a.href = "#";
-      a.textContent = label;
-      a.dataset.projectId =
-        id === null || id === undefined ? "" : String(id);
-      a.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.setActiveProject(id);
-      });
-      li.appendChild(a);
-      ul.appendChild(li);
-    };
-    addLink("Tutti", null);
-    const list = window.__PORTFOLIO_PROJECTS__ || [];
-    const byId = {};
-    list.forEach((p) => {
-      if (p && p.id != null) byId[String(p.id)] = p;
-    });
-    const sections = window.__PORTFOLIO_MENU_SECTIONS__;
-    if (sections && sections.length) {
-      sections.forEach((sec, secIdx) => {
-        const headingLi = document.createElement("li");
-        headingLi.className =
-          "projects-nav__section-heading" +
-          (secIdx === 0 ? " projects-nav__section-heading--first" : "");
-        const labelSpan = document.createElement("span");
-        labelSpan.className = "projects-nav__section-label";
-        const raw = (sec.label || "").trim();
-        labelSpan.textContent = raw.endsWith(":") ? raw : `${raw}:`;
-        headingLi.appendChild(labelSpan);
-        ul.appendChild(headingLi);
-        (sec.ids || []).forEach((pid) => {
-          const p = byId[String(pid)];
-          if (!p) return;
-          const n = this.projectOrdinalInPortfolio(pid);
-          const label = `N.${n} ${p.title || p.id}`;
-          addLink(label, p.id);
-        });
-      });
-    } else {
-      list.forEach((p) => {
-        const n = this.projectOrdinalInPortfolio(p.id);
-        const label = `N.${n} ${p.title || p.id}`;
-        addLink(label, p.id);
-      });
+    if (!this.useLocalPortfolio) return;
+
+    if (document.getElementById("projectsPreviewImg")) {
+      buildProjectsPageIndex(this);
+      this.highlightActiveProject();
+      return;
     }
-    this.highlightActiveProject();
   }
   setActiveProject(projectId) {
     if (!this.useLocalPortfolio) return;
@@ -4975,12 +5266,9 @@ export class FashionGallery {
     if (!ul) return;
     const cur =
       this.activeProjectId == null ? "" : String(this.activeProjectId);
-    ul.querySelectorAll("a").forEach((a) => {
-      const pid = a.dataset.projectId || "";
-      const isAll = cur === "";
-      const active =
-        (pid === "" && isAll) || (pid !== "" && pid === cur);
-      a.classList.toggle("project-link-active", active);
+    ul.querySelectorAll("[data-project-id], a[data-project-id]").forEach((el) => {
+      const pid = el.dataset.projectId || "";
+      el.classList.toggle("project-link-active", pid !== "" && pid === cur);
     });
   }
   rebuildGrid() {
@@ -5016,12 +5304,17 @@ export class FashionGallery {
       this.isProjectLaureaAlbumLayoutActive()
     ) {
       this.syncFilteredProjectGridState();
+      const suppress = this._suppressGridEntrance;
       this.gridItems.forEach((itemData) => {
-        gsap.set(itemData.element, { opacity: 1, clearProps: "left,top" });
+        gsap.set(itemData.element, {
+          opacity: suppress ? 0 : 1,
+          clearProps: "left,top",
+        });
       });
       if (this.controlsContainer) {
-        gsap.set(this.controlsContainer, { opacity: 1 });
-        this.controlsContainer.classList.add("visible");
+        gsap.set(this.controlsContainer, { opacity: suppress ? 0 : 1 });
+        if (!suppress) this.controlsContainer.classList.add("visible");
+        else this.controlsContainer.classList.remove("visible");
       }
       setTimeout(() => {
         this.initDraggable();
@@ -5062,7 +5355,7 @@ export class FashionGallery {
     }
     this.updatePercentageIndicator(this.config.currentZoom);
 
-    if (this.controlsContainer) {
+    if (this.controlsContainer && !this._suppressGridEntrance) {
       gsap.set(this.controlsContainer, { opacity: 1 });
       this.controlsContainer.classList.add("visible");
     }
@@ -5135,9 +5428,11 @@ export class FashionGallery {
     return element.querySelectorAll(".description-line");
   }
   calculateGapForZoom(zoomLevel) {
-    if (zoomLevel >= 1.0) return 16;
-    else if (zoomLevel >= 0.6) return 32;
-    else return 64;
+    let gap;
+    if (zoomLevel >= 1.0) gap = 16;
+    else if (zoomLevel >= 0.6) gap = 32;
+    else gap = 64;
+    return gap;
   }
   calculateGridDimensions(gap = this.config.currentGap) {
     const cell = this.layoutCellSize();
@@ -5853,13 +6148,15 @@ export class FashionGallery {
       displayItems.sort(
         (a, b) => (a.indexInProject ?? 0) - (b.indexInProject ?? 0)
       );
-    } else {
+    } else if (!this.coverHomeActive) {
       this.shuffleArray(displayItems);
     }
     this.config.currentGap = this.calculateGapForZoom(this.config.currentZoom);
     const { rows, placements } = projectView
       ? this.computeGridPlacementsProject(displayItems, this.config.cols)
-      : this.computeGridPlacements(displayItems);
+      : this.coverHomeActive
+        ? this.computeGridPlacementsHome(displayItems)
+        : this.computeGridPlacements(displayItems);
     this.config.rows = rows;
     this.calculateGridDimensions();
     this.applyCanvasLayoutSizing();
@@ -5985,7 +6282,9 @@ export class FashionGallery {
       const slides = this.buildSlideshowSlides(entry);
       const slideCount = slides.length;
       const startIdx =
-        slideCount > 1 ? Math.floor(Math.random() * slideCount) : 0;
+        isLead || slideCount <= 1
+          ? 0
+          : Math.floor(Math.random() * slideCount);
 
       const viewport = document.createElement("div");
       viewport.className = "grid-item__viewport";
@@ -6024,6 +6323,8 @@ export class FashionGallery {
       item.appendChild(vignette);
 
       gsap.set(track, { x: 0 });
+
+      if (isLead) this.markProjectRevealAnchor(item);
 
       const imgs = track.querySelectorAll(".grid-item__slide img");
       const activeImg = imgs[0];
@@ -6187,9 +6488,10 @@ export class FashionGallery {
    * Overlay zoom: con Drive mostra subito la miniatura già in cache (griglia), poi passa
    * a un thumbnail intermedio (non w3840) per meno attesa e meno rendering progressivo.
    */
-  createScalingOverlay(sourceImg, primaryUrl, onReady) {
+  createScalingOverlay(sourceImg, primaryUrl, onReady, zoomSession) {
     const overlay = document.createElement("div");
     overlay.className = "scaling-image-overlay";
+    overlay.addEventListener("click", this._handleZoomOverlayClickBound);
     const img = document.createElement("img");
     img.alt = sourceImg.alt;
     img.decoding = "async";
@@ -6227,6 +6529,7 @@ export class FashionGallery {
     let finished = false;
     const fire = () => {
       if (finished) return;
+      if (zoomSession != null && !this._zoomSessionAlive(zoomSession)) return;
       finished = true;
       onReady(overlay);
     };
@@ -6244,7 +6547,16 @@ export class FashionGallery {
         } else {
           img.referrerPolicy = "no-referrer";
         }
+        const refitWhenPrimaryReady = () => {
+          if (zoomSession != null && !this._zoomSessionAlive(zoomSession)) return;
+          if (this.zoomState.scalingOverlay !== overlay) return;
+          this.refitZoomOverlayNatural();
+        };
+        img.addEventListener("load", refitWhenPrimaryReady, { once: true });
         img.src = primary;
+        if (img.complete && img.naturalWidth > 0) {
+          refitWhenPrimaryReady();
+        }
       };
       loader.src = primary;
     };
@@ -6301,8 +6613,14 @@ export class FashionGallery {
       this.imageTitleOverlay.classList.remove("image-title-overlay--relaxed");
     }
   }
-  /** Dopo Flip.fit (o fallback fullscreen): titoli e overlay zoom. */
-  completeZoomOpenUI(selectedItemData) {
+  /** Dopo animazione apertura: titoli e overlay zoom. */
+  completeZoomOpenUI(selectedItemData, zoomSession) {
+    if (zoomSession != null && !this._zoomSessionAlive(zoomSession)) return;
+    this.zoomState.opening = false;
+    if (this.zoomState.pendingRefit) {
+      this.zoomState.pendingRefit = false;
+      this.refitZoomOverlayNatural();
+    }
     this.updateTitleOverlayForItem(selectedItemData);
     const imageTitleOverlay = this.imageTitleOverlay;
     gsap.set("#imageSlideNumber span", {
@@ -6418,12 +6736,185 @@ export class FashionGallery {
       );
     }
   }
+  showZoomBackdrop() {
+    this.hideZoomBackdrop({ immediate: true });
+    const bd = document.createElement("div");
+    bd.className = "zoom-backdrop";
+    bd.setAttribute("aria-hidden", "true");
+    bd.addEventListener("click", this._handleZoomBackdropClickBound);
+    document.body.appendChild(bd);
+    this.zoomState.backdropEl = bd;
+    gsap.fromTo(
+      bd,
+      { opacity: 0 },
+      { opacity: 1, duration: 0.55, ease: "power2.out" }
+    );
+  }
+  hideZoomBackdrop(opts = {}) {
+    const bd = this.zoomState.backdropEl;
+    if (!bd) return;
+    this.zoomState.backdropEl = null;
+    bd.removeEventListener("click", this._handleZoomBackdropClickBound);
+    if (opts.immediate) {
+      gsap.killTweensOf(bd);
+      if (bd.parentNode) bd.parentNode.removeChild(bd);
+      return;
+    }
+    gsap.to(bd, {
+      opacity: 0,
+      duration: 0.38,
+      ease: "power2.in",
+      onComplete: () => {
+        if (bd.parentNode) bd.parentNode.removeChild(bd);
+      }
+    });
+  }
+  _zoomSessionAlive(session) {
+    return (
+      session === this._zoomSession &&
+      this.zoomState.isActive &&
+      !this.zoomState.closing &&
+      !!this.zoomState.scalingOverlay
+    );
+  }
+  handleZoomOverlayClick(e) {
+    if (!this.zoomState.isActive || this.zoomState.closing) return;
+    const overlay = this.zoomState.scalingOverlay;
+    if (!overlay || e.currentTarget !== overlay) return;
+    if (e.target.tagName === "IMG") return;
+    this.exitZoomMode();
+  }
   clearZoomOverlayHoldBackground(overlayEl) {
     if (!overlayEl || !overlayEl.style) return;
     overlayEl.style.backgroundImage = "";
     overlayEl.style.backgroundSize = "";
     overlayEl.style.backgroundPosition = "";
     overlayEl.style.backgroundRepeat = "";
+  }
+  /** Area zoom con aspect ratio nativo (intera foto visibile, senza upscale oltre 1×). */
+  getZoomNaturalFitRect(overlay, boundsElOrRect) {
+    const img = overlay && overlay.querySelector("img");
+    if (!img || !img.naturalWidth || !img.naturalHeight) return null;
+    let bounds = null;
+    if (boundsElOrRect && typeof boundsElOrRect.getBoundingClientRect === "function") {
+      bounds = boundsElOrRect.getBoundingClientRect();
+    } else if (
+      boundsElOrRect &&
+      Number.isFinite(boundsElOrRect.width) &&
+      Number.isFinite(boundsElOrRect.height)
+    ) {
+      bounds = boundsElOrRect;
+    }
+    if (
+      !bounds ||
+      bounds.width < 64 ||
+      bounds.height < 64 ||
+      !Number.isFinite(bounds.width) ||
+      !Number.isFinite(bounds.height)
+    ) {
+      return null;
+    }
+    const nw = img.naturalWidth;
+    const nh = img.naturalHeight;
+    const scale = Math.min(bounds.width / nw, bounds.height / nh, 1);
+    const w = nw * scale;
+    const h = nh * scale;
+    return {
+      left: bounds.left + (bounds.width - w) / 2,
+      top: bounds.top + (bounds.height - h) / 2,
+      width: w,
+      height: h
+    };
+  }
+  animateZoomOverlayToNaturalFit(overlay, boundsElOrRect, opts = {}) {
+    if (!overlay || this.zoomState.closing) return;
+    const duration = opts.duration ?? 1.2;
+    const ease = opts.ease ?? this.customEase;
+    const onComplete = opts.onComplete;
+    const rect = this.getZoomNaturalFitRect(overlay, boundsElOrRect);
+    if (this.zoomState.flipAnimation) {
+      this.zoomState.flipAnimation.kill();
+    }
+    gsap.killTweensOf(overlay);
+    gsap.set(overlay, { clearProps: "transform" });
+    if (!rect) {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const br = overlay.getBoundingClientRect();
+      this.zoomState.flipAnimation = gsap.fromTo(
+        overlay,
+        {
+          left: br.left,
+          top: br.top,
+          width: br.width,
+          height: br.height
+        },
+        {
+          left: 0,
+          top: 0,
+          width: vw,
+          height: vh,
+          duration: opts.fallbackDuration ?? 1.05,
+          ease,
+          onComplete
+        }
+      );
+      return;
+    }
+    this.zoomState.flipAnimation = gsap.to(overlay, {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      duration,
+      ease,
+      onComplete
+    });
+  }
+  getZoomFitBoundsEl() {
+    const target = document.getElementById("zoomTarget");
+    if (target && target.getBoundingClientRect) {
+      const r = target.getBoundingClientRect();
+      if (r.width >= 64 && r.height >= 64) return target;
+    }
+    return {
+      left: 0,
+      top: 0,
+      width: window.innerWidth,
+      height: window.innerHeight
+    };
+  }
+  refitZoomOverlayNatural(animate = true) {
+    if (
+      !this.zoomState.isActive ||
+      !this.zoomState.scalingOverlay ||
+      this.zoomState.closing
+    ) {
+      return;
+    }
+    if (this.zoomState.opening) {
+      this.zoomState.pendingRefit = true;
+      return;
+    }
+    const overlay = this.zoomState.scalingOverlay;
+    const bounds = this.getZoomFitBoundsEl();
+    if (animate) {
+      this.animateZoomOverlayToNaturalFit(overlay, bounds, {
+        duration: 0.38,
+        ease: "power2.out"
+      });
+      return;
+    }
+    const rect = this.getZoomNaturalFitRect(overlay, bounds);
+    if (!rect) return;
+    gsap.killTweensOf(overlay);
+    gsap.set(overlay, {
+      left: rect.left,
+      top: rect.top,
+      width: rect.width,
+      height: rect.height,
+      clearProps: "transform"
+    });
   }
   swapZoomToItem(newItem) {
     const overlay = this.zoomState.scalingOverlay;
@@ -6518,6 +7009,7 @@ export class FashionGallery {
           gsap.set(img, { opacity: 1 });
           img.onload = null;
           img.onerror = null;
+          this.refitZoomOverlayNatural();
         };
         const revertThumb = () => {
           if (fullSwapDone || myGen !== this._zoomSwapGen) return;
@@ -6550,6 +7042,9 @@ export class FashionGallery {
       applyReferrerForUrl(fullUrl);
       gsap.set(img, { opacity: 1 });
       img.src = fullUrl;
+      if (img.complete && img.naturalWidth > 0) {
+        this.refitZoomOverlayNatural();
+      }
     } else {
       applyReferrerForUrl(fullUrl);
       gsap.set(img, { opacity: 0 });
@@ -6558,6 +7053,7 @@ export class FashionGallery {
         if (shown || myGen !== this._zoomSwapGen) return;
         shown = true;
         fadeInVisible();
+        this.refitZoomOverlayNatural();
       };
       img.onload = () => fadeIn();
       img.onerror = () => fadeIn();
@@ -6625,9 +7121,15 @@ export class FashionGallery {
     }
   }
   enterZoomMode(selectedItemData) {
-    if (this.zoomState.isActive) return;
+    if (this.zoomState.isActive || this.zoomState.closing) return;
+    this._zoomSession += 1;
+    const zoomSession = this._zoomSession;
     this.clearZoomTitleDescriptionRelax();
     this.zoomState.isActive = true;
+    this.zoomState.closing = false;
+    this.zoomState.opening = true;
+    this.zoomState.pendingRefit = false;
+    this.showZoomBackdrop();
     this.zoomState.selectedItem = selectedItemData;
     this.pauseAllGridItemDrift();
     this.gridItems.forEach((item) => this.pauseGridItemSlideshow(item));
@@ -6644,51 +7146,19 @@ export class FashionGallery {
     });
 
     const startFlip = (overlay) => {
-      gsap.set(selectedItemData.img, {
-        opacity: 0
-      });
+      if (!this._zoomSessionAlive(zoomSession)) return;
+      gsap.set(selectedItemData.img, { opacity: 0 });
       const runFit = () => {
-        const target = document.getElementById("zoomTarget");
+        if (!this._zoomSessionAlive(zoomSession)) return;
         void splitContainer.offsetHeight;
-        const rect = target ? target.getBoundingClientRect() : null;
-        const targetOk =
-          rect &&
-          rect.width >= 64 &&
-          rect.height >= 64 &&
-          Number.isFinite(rect.width) &&
-          Number.isFinite(rect.height);
-        if (!targetOk) {
-          const vw = window.innerWidth;
-          const vh = window.innerHeight;
-          gsap.killTweensOf(overlay);
-          this.zoomState.flipAnimation = null;
-          gsap.set(overlay, { clearProps: "transform" });
-          const br = overlay.getBoundingClientRect();
-          gsap.fromTo(
-            overlay,
-            {
-              left: br.left,
-              top: br.top,
-              width: br.width,
-              height: br.height
-            },
-            {
-              left: 0,
-              top: 0,
-              width: vw,
-              height: vh,
-              duration: 1.05,
-              ease: this.customEase,
-              onComplete: () => this.completeZoomOpenUI(selectedItemData)
-            }
-          );
-          return;
-        }
-        this.zoomState.flipAnimation = Flip.fit(overlay, target, {
-          duration: 1.2,
+        const fitBounds = this.getZoomFitBoundsEl();
+        const finishOpen = () =>
+          this.completeZoomOpenUI(selectedItemData, zoomSession);
+        gsap.set(overlay, { clearProps: "transform" });
+        this.animateZoomOverlayToNaturalFit(overlay, fitBounds, {
+          duration: 1.1,
           ease: this.customEase,
-          absolute: true,
-          onComplete: () => this.completeZoomOpenUI(selectedItemData)
+          onComplete: finishOpen
         });
       };
       requestAnimationFrame(() => requestAnimationFrame(runFit));
@@ -6697,27 +7167,30 @@ export class FashionGallery {
     this.createScalingOverlay(
       selectedItemData.img,
       this.getZoomPrimaryImageUrl(selectedItemData),
-      startFlip
+      startFlip,
+      zoomSession
     );
     this.attachZoomNavigationControls();
     if (this.controlsContainer) {
       this.controlsContainer.classList.add("split-mode");
     }
-    gsap.fromTo(
-      this.closeButton,
-      {
-        x: 40,
-        opacity: 0
-      },
-      {
-        x: 0,
-        opacity: 1,
-        duration: 0.6,
-        ease: "power2.out",
-        delay: 0.9
-      }
-    );
-    this.closeButton.classList.add("active");
+    if (this.closeButton) {
+      gsap.fromTo(
+        this.closeButton,
+        {
+          x: 40,
+          opacity: 0
+        },
+        {
+          x: 0,
+          opacity: 1,
+          duration: 0.6,
+          ease: "power2.out",
+          delay: 0.9
+        }
+      );
+      this.closeButton.classList.add("active");
+    }
     const splitLeft = document.getElementById("splitLeft");
     const splitRight = document.getElementById("splitRight");
     if (splitLeft) {
@@ -6729,20 +7202,32 @@ export class FashionGallery {
     document.addEventListener("keydown", this._handleZoomKeysBound);
   }
   handleSplitAreaClick(e) {
-    if (e.target === e.currentTarget) {
-      this.exitZoomMode();
-    }
+    if (!this.zoomState.isActive || this.zoomState.closing) return;
+    const overlay = this.zoomState.scalingOverlay;
+    if (overlay && (e.target === overlay || overlay.contains(e.target))) return;
+    this.exitZoomMode();
   }
   exitZoomMode() {
+    if (this.zoomState.closing) return;
     if (
       !this.zoomState.isActive ||
       !this.zoomState.selectedItem ||
       !this.zoomState.scalingOverlay
-    )
+    ) {
       return;
+    }
+    this._zoomSession += 1;
+    this.zoomState.closing = true;
+    this.zoomState.opening = false;
+    this.zoomState.pendingRefit = false;
+    if (this.zoomState.flipAnimation) {
+      this.zoomState.flipAnimation.kill();
+      this.zoomState.flipAnimation = null;
+    }
     this.clearZoomPrefetchTimers();
     this.clearZoomTitleDescriptionRelax();
     this.clearZoomOverlayHoldBackground(this.zoomState.scalingOverlay);
+    this.hideZoomBackdrop();
     this.soundSystem.play("close");
     this.detachZoomNavigationControls();
     document.removeEventListener("keydown", this._handleZoomKeysBound);
@@ -6757,16 +7242,21 @@ export class FashionGallery {
     const splitContainer = this.splitScreenContainer;
     const selectedElement = this.zoomState.selectedItem.element;
     const selectedImg = this.zoomState.selectedItem.img;
-    if (this.zoomState.flipAnimation) {
-      this.zoomState.flipAnimation.kill();
+    if (selectedImg) {
+      gsap.set(selectedImg, { opacity: 1 });
+    }
+    if (this.imageTitleOverlay) {
+      this.imageTitleOverlay.classList.remove("active");
     }
     // Hide title overlay quickly
     const overlayElement = this.imageTitleOverlay;
-    gsap.to(overlayElement, {
+    if (overlayElement) {
+      gsap.to(overlayElement, {
       opacity: 0,
       duration: 0.3,
       ease: "power2.out"
     });
+    }
     gsap.to("#imageSlideNumber span", {
       duration: 0.4,
       y: 24,
@@ -6808,12 +7298,15 @@ export class FashionGallery {
     } else {
       gsap.delayedCall(0.45, finishTitleOverlayHide);
     }
-    gsap.to(this.closeButton, {
-      duration: 0.3,
-      opacity: 0,
-      x: 40,
-      ease: "power2.in"
-    });
+    if (this.closeButton) {
+      gsap.to(this.closeButton, {
+        duration: 0.3,
+        opacity: 0,
+        x: 40,
+        ease: "power2.in"
+      });
+      this.closeButton.classList.remove("active");
+    }
     splitContainer.classList.remove("active");
     if (this.controlsContainer) {
       this.controlsContainer.classList.remove("split-mode");
@@ -6823,34 +7316,76 @@ export class FashionGallery {
       duration: 0.8,
       ease: "power2.out"
     });
-    Flip.fit(this.zoomState.scalingOverlay, selectedElement, {
-      duration: 1.2,
-      ease: this.customEase,
-      absolute: true,
-      onComplete: () => {
-        gsap.set(selectedImg, {
-          opacity: 1
-        });
-        if (this.zoomState.scalingOverlay) {
-          document.body.removeChild(this.zoomState.scalingOverlay);
-          this.zoomState.scalingOverlay = null;
-        }
-        splitContainer.classList.remove("active");
-        document.body.classList.remove("zoom-mode");
-        this.closeButton.classList.remove("active");
-        if (this.draggable) this.draggable.enable();
-        this.zoomState.isActive = false;
-        this.zoomState.selectedItem = null;
-        this.zoomState.flipAnimation = null;
-        this.startGridDriftForVisibleThumbnails();
+    const overlay = this.zoomState.scalingOverlay;
+    let exitDone = false;
+    const finishExit = () => {
+      if (exitDone) return;
+      exitDone = true;
+      if (selectedImg) {
+        gsap.set(selectedImg, { opacity: 1 });
       }
+      if (overlay) {
+        gsap.killTweensOf(overlay);
+        overlay.removeEventListener("click", this._handleZoomOverlayClickBound);
+        if (overlay.parentNode) overlay.parentNode.removeChild(overlay);
+      }
+      this.zoomState.scalingOverlay = null;
+      splitContainer.classList.remove("active");
+      document.body.classList.remove("zoom-mode");
+      if (this.draggable) this.draggable.enable();
+      this.zoomState.isActive = false;
+      this.zoomState.closing = false;
+      this.zoomState.selectedItem = null;
+      this.zoomState.flipAnimation = null;
+      this.startGridDriftForVisibleThumbnails();
+    };
+    gsap.delayedCall(1.6, () => {
+      if (this.zoomState.closing) finishExit();
     });
-    if (this.zoomState.scalingOverlay) {
-      gsap.to(this.zoomState.scalingOverlay, {
-        opacity: 0.4,
-        duration: 0.8,
-        ease: "power2.out"
+    let dest =
+      selectedElement && selectedElement.getBoundingClientRect
+        ? selectedElement.getBoundingClientRect()
+        : null;
+    let destOk =
+      dest &&
+      dest.width >= 2 &&
+      dest.height >= 2 &&
+      Number.isFinite(dest.width) &&
+      Number.isFinite(dest.height);
+    if (!destOk && selectedImg && selectedImg.getBoundingClientRect) {
+      dest = selectedImg.getBoundingClientRect();
+      destOk =
+        dest &&
+        dest.width >= 2 &&
+        dest.height >= 2 &&
+        Number.isFinite(dest.width) &&
+        Number.isFinite(dest.height);
+    }
+    if (overlay && destOk) {
+      gsap.killTweensOf(overlay);
+      gsap.set(overlay, { clearProps: "transform", opacity: 1 });
+      this.zoomState.flipAnimation = gsap.to(overlay, {
+        left: dest.left,
+        top: dest.top,
+        width: dest.width,
+        height: dest.height,
+        opacity: 0.35,
+        duration: 0.95,
+        ease: this.customEase,
+        onComplete: finishExit,
+        onInterrupt: finishExit
       });
+    } else if (overlay) {
+      gsap.killTweensOf(overlay);
+      gsap.to(overlay, {
+        opacity: 0,
+        duration: 0.4,
+        ease: "power2.in",
+        onComplete: finishExit,
+        onInterrupt: finishExit
+      });
+    } else {
+      finishExit();
     }
   }
   handleZoomKeys(e) {
@@ -6937,6 +7472,7 @@ export class FashionGallery {
   /** Griglia subito a posto (niente fly-in); reset drift + UI chrome. */
   applyGridVisibleAndStartDrift(options = {}) {
     const entranceControls = options.entranceControls !== false;
+    const hidden = this._suppressGridEntrance;
     this.gridItems.forEach((itemData) => {
       gsap.set(itemData.element, {
         left: itemData.baseX,
@@ -6944,10 +7480,17 @@ export class FashionGallery {
         x: 0,
         y: 0,
         scale: 1,
-        opacity: 1,
+        opacity: hidden ? 0 : 1,
         zIndex: itemData.spanCols > 1 ? 2 : 1
       });
     });
+    if (hidden) {
+      if (this.controlsContainer) {
+        gsap.set(this.controlsContainer, { opacity: 0 });
+        this.controlsContainer.classList.remove("visible");
+      }
+      return;
+    }
     this.startGridDriftForVisibleThumbnails();
     if (!this.controlsContainer) return;
     if (!entranceControls) {
@@ -7280,9 +7823,7 @@ export class FashionGallery {
     // Setup event listeners
     this.setupEventListeners();
 
-    if (window.location.hash === "#about" && !this.zoomState.isActive) {
-      this._applyAboutOpenState(true);
-    }
+    this.syncSitePageFromHash();
 
     this.beginGalleryEntrance();
   }
@@ -7663,74 +8204,43 @@ export class FashionGallery {
       });
     }
 
-    document.querySelectorAll("details.header-panel").forEach((details) => {
-      details.addEventListener("toggle", () => {
-        if (details.open) {
-          this.closeAboutSection();
-          document.querySelectorAll("details.header-panel").forEach((other) => {
-            if (other !== details) other.open = false;
-          });
-        }
-      });
-    });
-
     window.addEventListener("popstate", () => {
-      if (window.location.hash === "#about") {
-        if (!this.zoomState.isActive) {
-          this.closeHeaderPanels();
-          if (!this.isAboutOpen()) {
-            this._applyAboutOpenState(true);
-          }
-        }
-      } else if (this.isAboutOpen()) {
-        this._applyAboutOpenState(false);
-      }
+      this._handleSitePageHashNavigation(true);
+    });
+    window.addEventListener("hashchange", () => {
+      this._handleSitePageHashNavigation(true);
     });
 
     if (this.aboutNavLink) {
       this.aboutNavLink.addEventListener("click", (e) => {
         e.preventDefault();
-        if (this.isAboutOpen()) {
-          this.closeAboutSection();
-        } else {
-          this.openAboutSection();
-        }
+        this.toggleSitePage("about");
       });
     }
-    document.querySelectorAll(".header-panel__backdrop").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const d = btn.closest("details");
-        if (d) d.open = false;
+    if (this.projectsNavLink) {
+      this.projectsNavLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (!this.useLocalPortfolio) return;
+        this.toggleSitePage("progetti");
       });
-    });
-
-    document.addEventListener(
-      "pointerdown",
-      (e) => {
-        const openPanel = document.querySelector("details.header-panel[open]");
-        if (!openPanel) return;
-        if (openPanel.contains(e.target)) return;
-        this.closeHeaderPanels();
-      },
-      true
-    );
+    }
+    if (this.contactNavLink) {
+      this.contactNavLink.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.toggleSitePage("contatti");
+      });
+    }
 
     const logo = document.getElementById("logoReset");
     if (logo) {
       const onLogo = (e) => {
         if (e.type === "keydown" && e.key !== "Enter" && e.key !== " ") return;
         e.preventDefault();
-        if (this.isAboutOpen()) {
-          this.closeAboutSection();
-          if (this.useLocalPortfolio) {
-            this.setActiveProject(null);
-          }
-          return;
+        if (this.getOpenSitePageKey()) {
+          void this.closeAllSitePages();
         }
         if (this.useLocalPortfolio) {
           this.setActiveProject(null);
-        } else {
-          this.closeHeaderPanels();
         }
       };
       logo.addEventListener("click", onLogo);
